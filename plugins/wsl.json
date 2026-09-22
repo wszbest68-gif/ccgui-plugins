@@ -3,6 +3,7 @@
   "repo": "chenxiangning/ccgui-plugin-wsl",
   "tier": "js",
   "version": "0.4.6",
+  "updatedAt": "2026-09-15T14:19:10Z",
   "minAppVersion": "1.0.2",
   "sdkVersion": ">=0.3.4",
   "permissions": [

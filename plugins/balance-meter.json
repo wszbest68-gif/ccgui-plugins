@@ -3,6 +3,7 @@
   "repo": "zhujiuyi/ccgui-plugin-balance-meter",
   "tier": "js",
   "version": "0.2.0",
+  "updatedAt": "2026-09-21T11:34:20Z",
   "minAppVersion": "1.0.5",
   "sdkVersion": "^0.3",
   "permissions": [

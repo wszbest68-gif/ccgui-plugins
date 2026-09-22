@@ -27,6 +27,7 @@ import {
   JS_BLACKLIST,
   CSS_BLACKLIST,
   MAIN_MAX_BYTES,
+  RFC3339_UTC_RE,
 } from "./validate.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -64,7 +65,7 @@ export async function latestReleaseTag(repo) {
  * 核查候选版本并构建新登记条目。
  * @returns {{ entry?: object, skip?: string, notes: string[] }}
  */
-export async function buildBumpedEntry(id, old, tag, manifest, assets) {
+export async function buildBumpedEntry(id, old, tag, manifest, assets, updatedAt) {
   const notes = [];
   if (manifest.id !== id) return { notes, skip: `manifest.id "${manifest.id}" ≠ 索引 id "${id}"` };
   if (manifest.version !== tag) {
@@ -124,6 +125,7 @@ export async function buildBumpedEntry(id, old, tag, manifest, assets) {
     repo: old.repo,
     tier: old.tier,
     version: tag,
+    updatedAt,
     ...(manifest.minAppVersion ? { minAppVersion: manifest.minAppVersion } : {}),
     ...(manifest.sdkVersion ? { sdkVersion: manifest.sdkVersion } : {}),
     permissions,
@@ -134,8 +136,9 @@ export async function buildBumpedEntry(id, old, tag, manifest, assets) {
   return { entry, notes };
 }
 
-/** Release 的附件清单（判断 styles.css 是否存在；API 不可用回退按旧条目推断）。 */
-async function listReleaseAssets(repo, tag) {
+/** Release 元数据：附件清单（判断 styles.css 是否存在）+ 发布时间（索引
+ *  `updatedAt` 的事实源）。API 不可用返回 null，调用方回退按旧条目/当前时间推断。 */
+async function releaseMeta(repo, tag) {
   const token = process.env.GH_TOKEN;
   try {
     const res = await fetch(`https://api.github.com/repos/${repo}/releases/tags/${tag}`, {
@@ -147,7 +150,11 @@ async function listReleaseAssets(repo, tag) {
     });
     if (!res.ok) return null;
     const data = await res.json();
-    return (data.assets ?? []).map((a) => a.name);
+    const publishedAt =
+      typeof data.published_at === "string" && RFC3339_UTC_RE.test(data.published_at)
+        ? data.published_at
+        : null;
+    return { assets: (data.assets ?? []).map((a) => a.name), publishedAt };
   } catch {
     return null;
   }
@@ -172,7 +179,9 @@ async function planPlugin(id, old) {
     return { id, action: "skip", reason: `manifest.json 解析失败：${err.message}` };
   }
 
-  let assets = await listReleaseAssets(old.repo, tag);
+  const meta = await releaseMeta(old.repo, tag);
+
+  let assets = meta?.assets ?? null;
   if (assets === null) {
     // API 不可用：回退为探测下载 styles.css（仅当旧条目登记过或新版本可能有）
     assets = ["manifest.json", "main.js"];
@@ -180,8 +189,14 @@ async function planPlugin(id, old) {
     if (!probe.error) assets.push("styles.css");
   }
 
-  const { entry, skip, notes } = await buildBumpedEntry(id, old, tag, manifest, assets);
+  // updatedAt 以 Release 发布时间为准；API 拿不到时用登记时刻兜底（与真实
+  // 发布时间最多差一个 cron 周期），validate 只校验格式。
+  const updatedAt = meta?.publishedAt ?? new Date().toISOString();
+  const { entry, skip, notes } = await buildBumpedEntry(id, old, tag, manifest, assets, updatedAt);
   if (skip) return { id, action: "skip", reason: `${old.version} → ${tag}：${skip}` };
+  if (!meta?.publishedAt) {
+    notes.push(`Release 发布时间不可用，updatedAt 用登记时刻兜底：${updatedAt}`);
+  }
 
   const oldPerms = new Set(old.permissions ?? []);
   const newPerms = new Set(entry.permissions);

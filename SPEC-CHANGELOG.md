@@ -3,6 +3,13 @@
 规范全文见 desktop-cc-gui 仓库 `docs/plugin-development-guide.zh-CN.md`。
 本文件只记录规范的演进；每次规范变更（新权限、新字段、规则收紧）在此追加一段。
 
+## v0.2 — 2026-09-22（索引条目新增 updatedAt）
+
+- `plugins/<id>.json` 新增必填字段 `updatedAt`：该版本 Release 的发布时间（RFC 3339 UTC，如 `2026-09-20T08:30:00Z`）。
+- 写入方：版本登记机器人从 GitHub Release API 读取；API 不可用时用登记时刻兜底（与真实发布时间最多差一个 cron 周期）。人工提「版本登记 PR」时自行填写。
+- CI：字段必填、格式合法；PR 模式下版本号变更时必须随之更新（防把旧时间抄到新版本）；只刷新 `updatedAt`、其余字段不变的 PR（回填/校正）不算版本登记。
+- App 端：插件详情页用它显示「最近更新时间」；条目缺字段时只是不渲染该行（不拿本机安装时间冒充）。
+
 ## v0.1 — 2026-09-12（初始版本）
 
 - 分发模式（Obsidian 同款）：中央索引仓 + 每插件独立 GitHub repo + GitHub Releases 发版，零自建服务器。

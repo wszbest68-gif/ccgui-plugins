@@ -100,10 +100,12 @@ export function compareSemver(a, b) {
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,63}$/;
 const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
+// 索引 updatedAt：该版本 Release 的发布时间，只收 UTC 的 RFC 3339。
+export const RFC3339_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 const SDK_RANGE_RE = /^(\^|~|>=)?\d+\.\d+(\.\d+)?$|^\*$/;
 const TIERS = new Set(["declarative", "js"]);
 const ENTRY_KEYS = new Set([
-  "id", "repo", "tier", "version", "minAppVersion", "sdkVersion",
+  "id", "repo", "tier", "version", "updatedAt", "minAppVersion", "sdkVersion",
   "permissions", "sha256", "delisted", "pubkey",
 ]);
 const COMMUNITY_KEYS = new Set(["id", "repo", "name", "description", "author"]);
@@ -267,6 +269,21 @@ export function validateCommunityList(list, errors, warnings) {
 // ---------------------------------------------------------------------------
 // plugins/<id>.json schema 校验
 // ---------------------------------------------------------------------------
+
+/** 除 updatedAt 外其它字段是否完全一致（按 key 排序后比较）：用来识别
+ *  「只刷新时间戳」的 PR（索引侧回填/校正），它不算版本登记。 */
+function sameExceptStamp(a, b) {
+  const strip = (entry) =>
+    JSON.stringify(
+      Object.fromEntries(
+        Object.entries(entry)
+          .filter(([key]) => key !== "updatedAt")
+          .sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0)),
+      ),
+    );
+  return strip(a) === strip(b);
+}
+
 export function validateEntry(entry, fileName, errors, warnings) {
   const where = `${PLUGINS_DIR}/${fileName}`;
   if (typeof entry !== "object" || entry === null) {
@@ -289,6 +306,20 @@ export function validateEntry(entry, fileName, errors, warnings) {
   }
   if (!parseSemver(entry.version)) {
     errors.push(`${where}.version "${entry.version}" 不合法：semver 三段数字`);
+  }
+  if (entry.updatedAt === undefined) {
+    errors.push(
+      `${where}.updatedAt 缺失（该版本 Release 的发布时间，RFC 3339 UTC，` +
+        `如 "2026-09-20T08:30:00Z"；可用 gh release view <tag> --json publishedAt 获取）`,
+    );
+  } else if (
+    typeof entry.updatedAt !== "string" ||
+    !RFC3339_UTC_RE.test(entry.updatedAt) ||
+    Number.isNaN(Date.parse(entry.updatedAt))
+  ) {
+    errors.push(
+      `${where}.updatedAt "${entry.updatedAt}" 不合法（须为 RFC 3339 UTC，如 "2026-09-20T08:30:00Z"）`,
+    );
   }
   if (entry.minAppVersion !== undefined && !parseSemver(entry.minAppVersion)) {
     errors.push(`${where}.minAppVersion "${entry.minAppVersion}" 不合法`);
@@ -543,8 +574,15 @@ async function main() {
         if (baseEntry) {
           const cmp = compareSemver(entry.version, baseEntry.version);
           const delistOnly = entry.delisted !== baseEntry.delisted && cmp === 0;
-          if (cmp !== null && cmp <= 0 && !delistOnly) {
+          // 索引侧回填/校正 updatedAt（版本与其它字段不变）不算版本登记，放行；
+          // 夹带任何其它字段变化的同版本 PR 仍按单调规则报错。
+          const stampOnly =
+            cmp === 0 && entry.delisted === baseEntry.delisted && sameExceptStamp(entry, baseEntry);
+          if (cmp !== null && cmp <= 0 && !delistOnly && !stampOnly) {
             errors.push(`${id}: version "${entry.version}" 未严格大于已登记版本 "${baseEntry.version}"（规范 §5 单调规则）`);
+          }
+          if (cmp !== null && cmp > 0 && baseEntry.updatedAt === entry.updatedAt) {
+            errors.push(`${id}: version 变为 "${entry.version}" 但 updatedAt 未随之更新（应为新 Release 的发布时间）`);
           }
           if (baseEntry.delisted === true && cmp !== null && cmp > 0) {
             errors.push(`${id}: 已下架（delisted）插件不接受版本登记，请先由维护者恢复`);

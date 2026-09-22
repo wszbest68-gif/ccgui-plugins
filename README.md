@@ -10,7 +10,7 @@ GitHub Releases 分发（Obsidian 社区插件同款模式，零自建服务器�
 
 ```
 community-plugins.json        # 插件列表（id/repo/name/description/author，按 id 字典序）
-plugins/<id>.json             # 每个插件的版本登记：version/tier/permissions/sha256/minAppVersion
+plugins/<id>.json             # 每个插件的版本登记：version/updatedAt/tier/permissions/sha256/minAppVersion
 download-counts.json         # 各插件累计下载量（机器人每 6h 聚合 release 下载数生成，勿手改）
 scripts/validate.mjs          # 审核校验器（零依赖 Node ≥ 20）
 .github/workflows/validate.yml  # PR 校验 + main 全量复检
@@ -53,6 +53,7 @@ git tag 1.0.0 && git push origin 1.0.0
      "repo": "owner/ccgui-plugin-your-plugin",
      "tier": "js",
      "version": "1.0.0",
+     "updatedAt": "2026-09-20T08:30:00Z",
      "permissions": ["ui:panel-tab", "storage"],
      "sha256": {
        "main.js": "<64 位小写 hex>",
@@ -61,6 +62,8 @@ git tag 1.0.0 && git push origin 1.0.0
      }
    }
    ```
+
+   `updatedAt` 是该版本的发布时刻（RFC 3339 UTC，可取 `gh release view <tag> --json publishedAt`）——App 插件详情页用它显示「最近更新时间」，CI 校验格式；后续版本登记由机器人从 Release API 自动写入。
 
 4. 提 PR。CI 会自动：校验 manifest schema、比对 Release tag 与 version、
    下载产物核对 SHA256、扫描 bundle 黑名单与体积、生成审核报告评论在 PR 里。
@@ -91,6 +94,7 @@ git tag 1.0.0 && git push origin 1.0.0
 - Release 产物必须由仓库 Action 从源码构建，禁止手工上传本地产物（SHA256 会对不上）
 - bundle 体积 ≤ 512KB（警告）/ 2MB（硬上限，gzip 前）
 - `id` 一旦上架永不更改；`version` 必须严格单调递增
+- `plugins/<id>.json` 必填 `updatedAt`（该版本 Release 发布时间，RFC 3339 UTC）；版本登记时它必须跟着变
 - 权限最小化：`network:` / `exec:` 授权精确到最小范围，申请用不到的权限会被要求删减
 - bundle 黑名单：`eval(` / `new Function(` / `__TAURI__` / `localStorage` / 远程 `import(` 一律拒绝
 

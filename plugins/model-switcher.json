@@ -3,6 +3,7 @@
   "repo": "Guardian-J/ccgui-plugin-model-switcher",
   "tier": "js",
   "version": "1.0.29",
+  "updatedAt": "2026-09-21T17:45:10Z",
   "minAppVersion": "1.0.5",
   "sdkVersion": "^0.3.11",
   "permissions": [

@@ -3,6 +3,7 @@
   "repo": "zhukunpenglinyutong/ccgui-plugin-auto-title",
   "tier": "js",
   "version": "0.7.0",
+  "updatedAt": "2026-09-22T09:17:40Z",
   "minAppVersion": "1.0.2",
   "sdkVersion": ">=0.3.7",
   "permissions": [
