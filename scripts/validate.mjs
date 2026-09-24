@@ -54,6 +54,8 @@ const KNOWN_PERMISSIONS = new Set([
   "host:session",
   "host:workspace",
   "host:workspace:remote",
+  "host:window",
+  "host:models",
 ]);
 
 /** network: 授权体：<host>（任意端口）/ <host>:<port> / <host>:<a>-<b>（含端点）。 */
@@ -237,6 +239,8 @@ const CTX_PERMISSION_MAP = [
   { re: /ctx\.events\./, permission: "events" },
   { re: /ctx\.workspaces\.add\s*\(/, permission: "host:workspace" },
   { re: /ctx\.sessions\./, permission: "host:session" },
+  { re: /ctx\.window\./, permission: "host:window" },
+  { re: /ctx\.models\./, permission: "host:models" },
 ];
 const BRIDGE_NETWORK_RE = /plugin_http_request/;
 const BRIDGE_EXEC_RE = /plugin_exec_(run|spawn)/;

@@ -63,6 +63,13 @@
     "author": "zhukunpenglinyutong"
   },
   {
+    "id": "window-model-assistant",
+    "repo": "wszbest68-gif/ccgui-plugin-window-model-assistant",
+    "name": "窗口与模型助手",
+    "description": "仅管理 CC GUI 主窗口的位置与大小（自动恢复/保存/建议尺寸/微信采样，不动其他窗口），并按引擎与来源透明展示宿主公开的服务商模型目录；初始加载不出网，手动刷新才访问服务商接口，失败缓存降级并标注原因。",
+    "author": "wszbest68-gif"
+  },
+  {
     "id": "wsl",
     "repo": "chenxiangning/ccgui-plugin-wsl",
     "name": "WSL 管理器",
