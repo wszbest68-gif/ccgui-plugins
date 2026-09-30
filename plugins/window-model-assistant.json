@@ -19,5 +19,6 @@
     "main.js": "903de30921a7a9e350da9ef6201ac763cb1527eb3c2220c662f433e164cb9807",
     "manifest.json": "97ee2a77d1e25d7bef6362bba8baeb9f7051694ad74f424bb18d54631bd438f7",
     "styles.css": "a3be28ffcc376d369457b039eeade82ba622ba464a76c60799a7747a669ba1ca"
-  }
+  },
+  "delisted": true
 }
