@@ -2,14 +2,13 @@
   "id": "engine-hopper",
   "repo": "wszbest68-gif/ccgui-plugin-engine-hopper",
   "tier": "js",
-  "version": "0.1.0",
-  "minAppVersion": "1.0.10",
-  "sdkVersion": "^0.3.16",
+  "version": "0.1.2",
+  "minAppVersion": "1.0.9",
+  "sdkVersion": "^0.3.14",
   "permissions": [
     "storage",
     "events",
     "host:session",
-    "host:models",
     "agent",
     "exec:node",
     "ui:composer-status",
@@ -20,8 +19,8 @@
     "i18n"
   ],
   "sha256": {
-    "main.js": "e18e1220ca6a301d35da983a5dbc0c336f23fed7889b2225da516338ac4c41e2",
-    "manifest.json": "49317b6f2307a67e851dc7e5c059ac0577bb40dc899a1f7eb7fafde865b84dd6",
+    "main.js": "b66256e0775ae0b6ce570fc0eb600cbff6b13d834e40146439c5b72830a756b0",
+    "manifest.json": "a7b9ef4dc0231452fba12a222e009675fcd954e479855d5de4fc1c627ff227b6",
     "styles.css": "d632b4c44e411c7f45961874741360310307c0f780d141ffacdbc80f8d00e8c4"
   }
 }
