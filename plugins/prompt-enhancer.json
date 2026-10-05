@@ -1,0 +1,21 @@
+{
+  "id": "prompt-enhancer",
+  "repo": "wszbest68-gif/ccgui-plugin-prompt-enhancer",
+  "tier": "js",
+  "version": "0.3.3",
+  "minAppVersion": "1.1.0",
+  "sdkVersion": "^0.3.15",
+  "permissions": [
+    "events",
+    "ui:composer-status",
+    "ui:settings-section",
+    "composer:draft",
+    "theme",
+    "storage",
+    "network:api.deepseek.com"
+  ],
+  "sha256": {
+    "main.js": "a42f4b6d9e3c476367ad70427b7e57001cec34dcf56e05539f9307324b99fbe9",
+    "manifest.json": "16a230273994ec05171b187453c213a79c6acb67b05fb93672c62ccb62dd8ac5"
+  }
+}

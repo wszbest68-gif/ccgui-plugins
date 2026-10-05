@@ -63,6 +63,13 @@
     "author": "hekai753"
   },
   {
+    "id": "prompt-enhancer",
+    "repo": "wszbest68-gif/ccgui-plugin-prompt-enhancer",
+    "name": "提示词增强",
+    "description": "Composer 一键调用 DeepSeek 润色提示词：保持原意与原语言，预览确认后写回草稿，不自动发送；API Key 仅存本机插件私有存储。",
+    "author": "wszbest68-gif"
+  },
+  {
     "id": "react-doctor",
     "repo": "zhukunpenglinyutong/ccgui-plugin-react-doctor",
     "name": "React Doctor",
