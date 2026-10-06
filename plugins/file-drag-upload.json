@@ -1,0 +1,17 @@
+{
+  "id": "file-drag-upload",
+  "repo": "wszbest68-gif/ccgui-plugin-file-drag-upload",
+  "tier": "js",
+  "version": "1.0.0",
+  "sdkVersion": "^0.3",
+  "permissions": [
+    "events",
+    "storage",
+    "composer:draft",
+    "ui:panel-tab"
+  ],
+  "sha256": {
+    "main.js": "c0182d1e8fe1d4e0dcca7c5a4af0a3d2c1318935174bc552d301a970671b321f",
+    "manifest.json": "8589cded03deb57e33a4e3ac5d02bcbc476816425571b591223c778dab287761"
+  }
+}

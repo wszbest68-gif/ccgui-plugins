@@ -42,6 +42,13 @@
     "author": "wszbest68-gif"
   },
   {
+    "id": "file-drag-upload",
+    "repo": "wszbest68-gif/ccgui-plugin-file-drag-upload",
+    "name": "文件拖拽上传",
+    "description": "拖拽文件到聊天窗口，支持预览、删除和重新排序",
+    "author": "wszbest68-gif"
+  },
+  {
     "id": "font-tuner",
     "repo": "3774929/ccgui-plugin-font-tuner",
     "name": "字体调校",
