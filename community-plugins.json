@@ -42,6 +42,13 @@
     "author": "wszbest68-gif"
   },
   {
+    "id": "file-drag-upload",
+    "repo": "wszbest68-gif/ccgui-plugin-file-drag-upload",
+    "name": "文件拖拽上传",
+    "description": "拖拽文件到聊天窗口，支持预览、删除和重新排序",
+    "author": "wszbest68-gif"
+  },
+  {
     "id": "font-tuner",
     "repo": "3774929/ccgui-plugin-font-tuner",
     "name": "字体调校",
@@ -66,7 +73,7 @@
     "id": "prompt-enhancer",
     "repo": "wszbest68-gif/ccgui-plugin-prompt-enhancer",
     "name": "提示词增强",
-    "description": "???? API ???????? DeepSeek?Kimi Coding?GPT?Claude?Gemini????????????????????",
+    "description": "默认使用专用文本 API 增强提示词，支持 OpenAI 兼容、Responses、Claude、Gemini；可选引擎模式，预览后写回。",
     "author": "wszbest68-gif"
   },
   {

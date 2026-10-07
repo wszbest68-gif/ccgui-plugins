@@ -32,7 +32,7 @@
     "network:api.siliconflow.com"
   ],
   "sha256": {
-    "main.js": "aad55cb2796e29d15f0afac25bd4fbbd97b71aa94a1429919c5356444f2d0114",
-    "manifest.json": "83b1890f830c6c093151503a5448d2b1235c38e1df6bfb0465fb114e13bbd6fa"
+    "manifest.json": "83b1890f830c6c093151503a5448d2b1235c38e1df6bfb0465fb114e13bbd6fa",
+    "main.js": "aad55cb2796e29d15f0afac25bd4fbbd97b71aa94a1429919c5356444f2d0114"
   }
 }
