@@ -35,7 +35,7 @@ const FEATURED_MAX_ROWS = 8;
 const FEATURED_KEYS = new Set(["id", "tagline", "note", "image"]);
 
 // ---------------------------------------------------------------------------
-// 权限白名单（镜像 plugin-sdk/spec/permissions.json；勿在此独断修改）
+// 权限白名单（镜像 plugin-sdk/spec/permissions.json，SDK 0.3.20；勿在此独断修改）
 // ---------------------------------------------------------------------------
 const KNOWN_PERMISSIONS = new Set([
   "storage",
@@ -77,17 +77,17 @@ const KNOWN_PERMISSIONS = new Set([
 ]);
 
 /** network: 授权体：<host>（任意端口）/ <host>:<port> / <host>:<a>-<b>（含端点）。 */
-const NETWORK_GRANT_RE = /^([A-Za-z0-9.-]+)(?::(\d+)(?:-(\d+))?)?$/;
+// $(?![\s\S]) 要求真正的字符串尾，不能让 $ 放过末尾换行。
+const NETWORK_GRANT_RE = /^([A-Za-z0-9.-]+)(?::(\d+)(?:-(\d+))?)?$(?![\s\S])/;
 /** exec: 授权的二进制名：裸名，禁路径分隔符。 */
-const EXEC_BIN_RE = /^[A-Za-z0-9._-]+$/;
+const EXEC_BIN_RE = /^[A-Za-z0-9._-]+$(?![\s\S])/;
 
 export function isKnownPermission(p) {
   if (KNOWN_PERMISSIONS.has(p)) return true;
   if (p.startsWith("network:")) {
     const body = p.slice("network:".length);
-    if (body.toLowerCase() === "none") return false; // network:none 是基座权限，不是授权
     const m = NETWORK_GRANT_RE.exec(body);
-    if (!m) return false;
+    if (!m || m[1].toLowerCase() === "none") return false; // none 仅是基座权限，不能带端口变成授权
     if (m[2] === undefined) return true;
     const from = Number(m[2]);
     const to = m[3] === undefined ? from : Number(m[3]);
@@ -125,16 +125,12 @@ export function compareSemver(a, b) {
  * （与 Rust src-tauri/src/plugins/manifest.rs::is_valid_id 逐字节一致）。
  * 总长 2..=64；点分段，每段 [a-z0-9][a-z0-9-]*。id 同时是安装目录名，
  * 故该规则也是路径穿越护栏（禁 `/`、`\`、`..`、首尾点、空段）。
+ * 无需 `m` 的 `$` 只保证「行尾」，尾巴上盖 (?![\s\S]) 才是真正的字符串尾：
+ * 否则 "ab\n" / "ab\u2028" 这类带尾随换行的 id 会被放行。
  */
-const ID_RE = /^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)*$/;
+const ID_RE = /^[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*$(?![\s\S])/;
 const ID_MIN_BYTES = 2;
 const ID_MAX_BYTES = 64;
-
-export function isValidPluginId(id) {
-  if (typeof id !== "string") return false;
-  const bytes = Buffer.byteLength(id, "utf8");
-  return bytes >= ID_MIN_BYTES && bytes <= ID_MAX_BYTES && ID_RE.test(id);
-}
 
 /**
  * Release 附件名：镜像宿主 src-tauri/src/plugins/market.rs::is_valid_asset_name。
@@ -159,6 +155,13 @@ const ENTRY_KEYS = new Set([
 /** RFC 3339 UTC，与宿主 updated_at 的渲染口径一致。 */
 const UPDATED_AT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 const COMMUNITY_KEYS = new Set(["id", "repo", "name", "description", "author"]);
+
+/** 与宿主的插件目录名/路径穿越护栏一致，登记与自动升级共用。 */
+export function isValidPluginId(id) {
+  if (typeof id !== "string") return false;
+  const bytes = Buffer.byteLength(id, "utf8");
+  return bytes >= ID_MIN_BYTES && bytes <= ID_MAX_BYTES && ID_RE.test(id);
+}
 
 /** 展示素材（SPEC-CHANGELOG v0.2）：manifest 声明，机器人镜像进索引。 */
 const MAX_SCREENSHOTS = 5;
@@ -263,57 +266,111 @@ export const CSS_BLACKLIST = [
   { re: /url\(\s*['"]?https?:\/\//i, label: "url(http…)" },
 ];
 
-/**
- * ctx API → 所需权限（权限-代码比对启发式；事实源 plugin-sdk references/api.md）。
- *
- * 匹配**成员路径后缀**而非字面 `ctx.`：登记的产物是压缩后的 bundle，
- * `ctx` 这个形参名基本都被改名（实测形态 `t.ui.registerOverlay(`、
- * `e.hooks.registerTurnHooks(`、`this.ctx.assets.bundleUrl(`）。
- * 旧写法要求字面 `ctx.`，于是「漏声明 = 错误」这条门禁在压缩产物上整体失效，
- * 同时把正确声明的权限全报成「未检出」。
- */
+// SDK 能力面 → 权限（权限-代码比对启发式；事实源 plugin-sdk references/api.md）
+//
+// 匹配从成员路径开始，不绑定接收者名字：打包后的 bundle 会把 activate 的
+// 上下文参数压缩成任意标识符（CCB 1.0.2 是 `t.ui.registerSettingsSection`），
+// 写死 `ctx.` 会让「调用了却没声明」这条错误判定对所有压缩产物失效。
+//
+// - requires：匹配到却没声明 = 错误。只给能唯一确定权限的调用点。
+// - satisfies：算作「该权限在用」，只用于抑制「声明了但没用到」的警告。
+//   一个调用点对应多个候选权限（宿主按入参字段分别门禁，静态无法区分）时
+//   只填 satisfies，避免误报错误。
 const CTX_PERMISSION_MAP = [
-  { re: /\.ui\.registerSettingsSection\s*\(/, permission: "ui:settings-section" },
-  { re: /\.ui\.registerAddMenuRow\s*\(/, permission: "ui:add-menu" },
-  { re: /\.ui\.registerComposerSlot\s*\(/, permission: "ui:composer-status" },
-  { re: /\.ui\.registerComposerStatusItem\s*\(/, permission: "ui:composer-status" },
-  { re: /\.ui\.registerPanelTab\s*\(/, permission: "ui:panel-tab" },
-  { re: /\.ui\.registerStatusBarItem\s*\(/, permission: "ui:status-bar" },
-  { re: /\.ui\.registerOverlay\s*\(/, permission: "ui:overlay" },
-  { re: /\.ui\.registerCommand\s*\(/, permission: "ui:command" },
-  { re: /\.ui\.registerMarkdownRenderer\s*\(/, permission: "ui:markdown" },
-  { re: /\.ui\.registerPage\s*\(/, permission: "ui:page" },
-  { re: /\.ui\.registerTimelineRowRenderer\s*\(/, permission: "ui:timeline-row" },
-  { re: /\.ui\.registerSidebarNav\s*\(/, permission: "ui:sidebar-entry" },
-  { re: /\.ui\.registerCenterTab\s*\(/, permission: "ui:center-tab" },
-  { re: /\.ui\.openCenterTab\s*\(/, permission: "ui:center-tab" },
-  { re: /\.ui\.registerWorkspaceMenuItem\s*\(/, permission: "ui:workspace-menu" },
-  { re: /\.ui\.registerSessionMenuItem\s*\(/, permission: "ui:session-menu" },
-  { re: /\.ui\.registerConversationMode\s*\(/, permission: "ui:conversation-mode" },
-  { re: /\.hooks\.registerSessionHooks\s*\(/, permission: "session.lifecycle.read" },
-  { re: /\.hooks\.registerTurnHooks\s*\(/, permission: "runtime.events.read" },
-  { re: /\.hooks\.registerRuntimeSwitchHooks\s*\(/, permission: "runtime.switch.observe" },
-  { re: /\.documentStorage\./, permission: "plugin.storage" },
-  { re: /\.assets\.(bundleUrl|documentUrl)\s*\(/, permission: "assets:bundle" },
-  { re: /\.assets\.(grantDirectory|listDirectories|revokeDirectory|directoryUrl)\s*\(/, permission: "assets:directory" },
-  { re: /\.workspace\.getMetadata\s*\(/, permission: "workspace.metadata.read" },
-  { re: /\.agent\.(catalog|start|interrupt)\s*\(/, permission: "agent" },
-  { re: /\.theme\.(injectCss|setTokens)\s*\(/, permission: "theme" },
-  { re: /\.i18n\.addBundle\s*\(/, permission: "i18n" },
-  { re: /\.storage\.(get|set|delete)\s*\(/, permission: "storage" },
-  { re: /\.events\.(on|emit)\s*\(/, permission: "events" },
-  { re: /\.workspaces\.add\s*\(/, permission: "host:workspace" },
-  { re: /\.composer\.setDraft\s*\(/, permission: "composer:draft" },
-  // 这三条必须按方法名匹配，不能用裸命名空间：压缩产物里 `window.`、
-  // `.models.map(`、`.sessions.length` 之类的普通表达式会把无关插件误判成
-  // 「漏声明权限」（实测会误伤 engine-hopper / model-switcher /
-  // token-meter / window-model-assistant）。
-  { re: /\.sessions\.(selectSession|refresh|setEffort|startRun|interruptRun|registerSource)\s*\(/, permission: "host:session" },
-  { re: /\.window\.(getState|setNormalBounds|sampleWechat)\s*\(/, permission: "host:window" },
-  { re: /\.models\.(listEngines|listEngineModels|catalog)\s*\(/, permission: "host:models" },
+  { api: "ui.registerSettingsSection", re: /\.ui\.registerSettingsSection\s*\(/, requires: "ui:settings-section" },
+  { api: "ui.registerAddMenuRow", re: /\.ui\.registerAddMenuRow\s*\(/, requires: "ui:add-menu" },
+  { api: "ui.registerComposerSlot", re: /\.ui\.registerComposerSlot\s*\(/, requires: "ui:composer-status" },
+  { api: "ui.registerComposerStatusItem", re: /\.ui\.registerComposerStatusItem\s*\(/, requires: "ui:composer-status" },
+  { api: "ui.registerPanelTab", re: /\.ui\.registerPanelTab\s*\(/, requires: "ui:panel-tab" },
+  { api: "ui.registerStatusBarItem", re: /\.ui\.registerStatusBarItem\s*\(/, requires: "ui:status-bar" },
+  { api: "ui.registerCommand", re: /\.ui\.registerCommand\s*\(/, requires: "ui:command" },
+  { api: "ui.registerMarkdownRenderer", re: /\.ui\.registerMarkdownRenderer\s*\(/, requires: "ui:markdown" },
+  { api: "ui.registerPage", re: /\.ui\.registerPage\s*\(/, requires: "ui:page" },
+  { api: "ui.registerTimelineRowRenderer", re: /\.ui\.registerTimelineRowRenderer\s*\(/, requires: "ui:timeline-row" },
+  { api: "ui.registerSidebarNav", re: /\.ui\.registerSidebarNav\s*\(/, requires: "ui:sidebar-entry" },
+  { api: "ui.registerCenterTab", re: /\.ui\.registerCenterTab\s*\(/, requires: "ui:center-tab" },
+  { api: "ui.openCenterTab", re: /\.ui\.openCenterTab\s*\(/, requires: "ui:center-tab" },
+  { api: "ui.registerWorkspaceMenuItem", re: /\.ui\.registerWorkspaceMenuItem\s*\(/, requires: "ui:workspace-menu" },
+  { api: "ui.registerSessionMenuItem", re: /\.ui\.registerSessionMenuItem\s*\(/, requires: "ui:session-menu" },
+  { api: "ui.registerOverlay", re: /\.ui\.registerOverlay\s*\(/, requires: "ui:overlay" },
+  { api: "ui.registerConversationMode", re: /\.ui\.registerConversationMode\s*\(/, requires: "ui:conversation-mode" },
+  // 通用名字的 namespace（models / sessions / window / storage / events …）必须
+  // 连同 SDK 真实方法名一起匹配：裸 `.models.` 会打到 API 响应里的数据字段
+  // （实测 `d.models.map`、`k.models.length`）、内部 Map（`this.sessions.get`）
+  // 和特性探测（`e.window.getState` 之外的 `e.window &&`），把合规插件判死。
+  // SDK 方法名与 Array/Map 的成员名不重叠，所以绑方法名既避免误报也不漏真调用。
+  { api: "agent.*", re: /\.agent\.(catalog|start|interrupt)\s*\(/, requires: "agent" },
+  { api: "theme.*", re: /\.theme\.(injectCss|setTokens)\s*\(/, requires: "theme" },
+  { api: "i18n.addBundle", re: /\.i18n\.addBundle\s*\(/, requires: "i18n" },
+  { api: "storage.*", re: /\.storage\.(get|set|delete)\s*\(/, requires: "storage" },
+  { api: "events.*", re: /\.events\.(on|emit)\s*\(/, requires: "events" },
+  { api: "composer.setDraft", re: /\.composer\.setDraft\s*\(/, requires: "composer:draft" },
+  { api: "documentStorage.*", re: /\.documentStorage\.[A-Za-z]+\s*\(/, requires: "plugin.storage" },
+  { api: "workspace.getMetadata", re: /\.workspace\.getMetadata\s*\(/, requires: "workspace.metadata.read" },
+  { api: "workspaces.add", re: /\.workspaces\.add\s*\(/, requires: "host:workspace" },
+  { api: "workspaces.list", re: /\.workspaces\.list\s*\(/, requires: "host:workspace" },
+  { api: "worktrees.*", re: /\.worktrees\.(create|remove)\s*\(/, requires: "host:worktree" },
+  {
+    api: "sessions.*",
+    re: /\.sessions\.(selectSession|refresh|setEffort|startRun|interruptRun|registerSource|list)\s*\(/,
+    requires: "host:session",
+  },
+  {
+    api: "window.*",
+    re: /\.window\.(getState|setNormalBounds|sampleWechat)\s*\(/,
+    requires: "host:window",
+  },
+  {
+    api: "models.*",
+    re: /\.models\.(listEngines|listEngineModels|catalog)\s*\(/,
+    requires: "host:models",
+  },
+  { api: "hooks.registerSessionHooks", re: /\.hooks\.registerSessionHooks\s*\(/, requires: "session.lifecycle.read" },
+  { api: "hooks.registerRuntimeSwitchHooks", re: /\.hooks\.registerRuntimeSwitchHooks\s*\(/, requires: "runtime.switch.observe" },
+  // 同一调用点按 hooks 字段分别门禁（onRuntimeEvent/afterTurn 要
+  // runtime.events.read，beforeTurn/onInternalMessage 要
+  // prompt.contribute.internal），静态分不开，故不作硬性错误。
+  {
+    api: "hooks.registerTurnHooks",
+    re: /\.hooks\.registerTurnHooks\s*\(/,
+    satisfies: ["runtime.events.read", "prompt.contribute.internal"],
+  },
 ];
 const BRIDGE_NETWORK_RE = /plugin_http_request/;
 const BRIDGE_EXEC_RE = /plugin_exec_(run|spawn)/;
+
+/**
+ * 权限声明 vs 产物代码比对（纯函数，便于直接测试）。
+ * 漏声明 = 错误；声明了但未检出调用 = 警告（交审核员裁量，启发式不足以判死）。
+ */
+export function comparePermissionsWithCode(id, permissions, text) {
+  const errors = [];
+  const warnings = [];
+  const declared = new Set(permissions);
+  for (const { api, re, requires } of CTX_PERMISSION_MAP) {
+    if (requires && re.test(text) && !declared.has(requires)) {
+      errors.push(`${id}: 代码使用 ${api} 但未声明权限 "${requires}"`);
+    }
+  }
+  if (BRIDGE_NETWORK_RE.test(text) && ![...declared].some((p) => p.startsWith("network:"))) {
+    errors.push(`${id}: 代码调用 plugin_http_request 但未声明任何 network: 授权`);
+  }
+  if (BRIDGE_EXEC_RE.test(text) && ![...declared].some((p) => p.startsWith("exec:"))) {
+    errors.push(`${id}: 代码调用 plugin_exec_* 但未声明任何 exec: 授权`);
+  }
+  const used = new Set(
+    CTX_PERMISSION_MAP.filter(({ re }) => re.test(text)).flatMap((m) => m.satisfies ?? [m.requires]),
+  );
+  // host:workspace:remote 是 workspaces.add 携带 wsl meta 时的升级修饰，
+  // 同一调用点，无法靠静态启发式区分；host:workspace 已检出即视为在用。
+  if (used.has("host:workspace")) used.add("host:workspace:remote");
+  for (const p of declared) {
+    if (KNOWN_PERMISSIONS.has(p) && p !== "network:none" && !used.has(p)) {
+      warnings.push(`${id}: 声明了权限 "${p}" 但未在代码中检出对应调用（请审核员确认是否多余）`);
+    }
+  }
+  return { errors, warnings };
+}
 
 // ---------------------------------------------------------------------------
 // 小工具
@@ -350,27 +407,55 @@ function gitChangedFiles(base) {
   return r.stdout.split("\n").map((s) => s.trim()).filter(Boolean);
 }
 
+// 瞬时故障退避重试：传输层错误与 408/429/5xx 重试，404 等确定性响应立刻返回。
+const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+/** fetchRaw 的第三态：连接不通，既不能断定存在也不能断定缺失。 */
+export const UNREACHABLE = "unreachable";
+
+export async function fetchWithRetry(url, { timeoutMs, attempts = 3, backoffMs = 400 } = {}) {
+  let last = "网络错误：未发起请求";
+  for (let i = 0; i < attempts; i += 1) {
+    if (i > 0) await new Promise((r) => setTimeout(r, backoffMs * 2 ** (i - 1)));
+    let res;
+    try {
+      res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(timeoutMs) });
+    } catch (err) {
+      last = `网络错误：${err.message}`;
+      continue;
+    }
+    if (res.ok || !RETRYABLE_STATUS.has(res.status)) return { res };
+    last = `HTTP ${res.status}`;
+  }
+  return { error: `${last}（已重试 ${attempts} 次）` };
+}
+
 /** 下载 Release 附件；404 与其他错误分开报。 */
 export async function downloadAsset(repo, tag, file) {
   const url = `https://github.com/${repo}/releases/download/${tag}/${file}`;
-  let res;
-  try {
-    res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(30_000) });
-  } catch (err) {
-    return { error: `网络错误：${err.message}` };
-  }
+  const { res, error } = await fetchWithRetry(url, { timeoutMs: 30_000 });
+  if (error) return { error };
   if (!res.ok) return { error: `HTTP ${res.status}`, status: res.status };
   return { buf: Buffer.from(await res.arrayBuffer()) };
 }
 
+/**
+ * 仓库根文件是否存在。三态：true 存在、false 确定缺失（404）、
+ * UNREACHABLE 连接不通。不可达绝不能当成「缺文件」判错——否则网络抽风
+ * 会把合规 PR 判死（2026-10-08 实测 raw.githubusercontent 偶发连接失败，
+ * 同一 tag 的 README 连续请求里一次 200、一次 HTTP 000）。
+ */
 async function fetchRaw(repo, ref, file) {
   const url = `https://raw.githubusercontent.com/${repo}/${ref}/${file}`;
-  try {
-    const res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15_000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
+  const { res, error } = await fetchWithRetry(url, { timeoutMs: 15_000 });
+  if (error) return UNREACHABLE;
+  return res.ok ? true : res.status === 404 ? false : UNREACHABLE;
+}
+
+/** 三态存在性的报告标记：✅ 存在 / ❌ 缺失 / ⚠️ 连不上（未能确认）。 */
+function presenceMark(state) {
+  if (state === true) return "✅";
+  if (state === UNREACHABLE) return "⚠️ 未能确认（连接失败）";
+  return "❌";
 }
 
 // ---------------------------------------------------------------------------
@@ -396,7 +481,7 @@ export function validateCommunityList(list, errors, warnings) {
       if (typeof item[k] !== "string" || !item[k].trim()) errors.push(`${where}.${k} 缺失或不是非空字符串`);
     }
     if (typeof item.id === "string") {
-      if (!isValidPluginId(item.id)) errors.push(`${where}.id "${item.id}" 不合法（点分段 [a-z0-9][a-z0-9-]*，2–64 字节）`);
+      if (!isValidPluginId(item.id)) errors.push(`${where}.id "${item.id}" 不合法（2..64 字节，${ID_RE}）`);
       if (seen.has(item.id)) errors.push(`${where}.id "${item.id}" 重复`);
       seen.add(item.id);
       if (prev !== null && item.id.localeCompare(prev) <= 0) {
@@ -475,7 +560,7 @@ export function validateEntry(entry, fileName, errors, warnings) {
     if (!ENTRY_KEYS.has(k)) warnings.push(`${where} 含未知字段 "${k}"`);
   }
   if (!isValidPluginId(entry.id)) {
-    errors.push(`${where}.id 不合法（点分段 [a-z0-9][a-z0-9-]*，2–64 字节）`);
+    errors.push(`${where}.id 不合法（2..64 字节，${ID_RE}）`);
   } else if (entry.id !== fileName.replace(/\.json$/, "")) {
     errors.push(`${where}.id "${entry.id}" 与文件名 "${fileName}" 不一致`);
   }
@@ -657,28 +742,9 @@ async function checkRelease(entry, errors, warnings, report) {
 
   // 权限-代码比对（启发式，漏声明 = 错误；多声明 = 警告请审核员裁量）
   if (main && Array.isArray(manifest.permissions)) {
-    const text = main.toString("utf8");
-    const declared = new Set(manifest.permissions);
-    for (const { re, permission } of CTX_PERMISSION_MAP) {
-      if (re.test(text) && !declared.has(permission)) {
-        errors.push(`${id}: 代码使用 ${re.source.replace(/\\/g, "")} 但未声明权限 "${permission}"`);
-      }
-    }
-    if (BRIDGE_NETWORK_RE.test(text) && ![...declared].some((p) => p.startsWith("network:"))) {
-      errors.push(`${id}: 代码调用 plugin_http_request 但未声明任何 network: 授权`);
-    }
-    if (BRIDGE_EXEC_RE.test(text) && ![...declared].some((p) => p.startsWith("exec:"))) {
-      errors.push(`${id}: 代码调用 plugin_exec_* 但未声明任何 exec: 授权`);
-    }
-    const used = new Set(CTX_PERMISSION_MAP.filter(({ re }) => re.test(text)).map((m) => m.permission));
-    // host:workspace:remote 是 ctx.workspaces.add 携带 wsl meta 时的升级修饰，
-    // 同一调用点，无法靠静态启发式区分；host:workspace 已检出即视为在用。
-    if (used.has("host:workspace")) used.add("host:workspace:remote");
-    for (const p of declared) {
-      if (KNOWN_PERMISSIONS.has(p) && p !== "network:none" && !used.has(p)) {
-        warnings.push(`${id}: 声明了权限 "${p}" 但未在代码中检出对应调用（请审核员确认是否多余）`);
-      }
-    }
+    const verdict = comparePermissionsWithCode(id, manifest.permissions, main.toString("utf8"));
+    errors.push(...verdict.errors);
+    warnings.push(...verdict.warnings);
   }
 
   // README / LICENSE（规范 §4 必须）
@@ -686,8 +752,17 @@ async function checkRelease(entry, errors, warnings, report) {
     fetchRaw(repo, tag, "README.md"),
     fetchRaw(repo, tag, "LICENSE"),
   ]);
-  if (!hasReadme) errors.push(`${id}: 仓库根缺 README.md（市场详情页直接渲染它）`);
-  if (!hasLicense) errors.push(`${id}: 仓库根缺 LICENSE（规范 §4 必须）`);
+  for (const [file, state, why] of [
+    ["README.md", hasReadme, "市场详情页直接渲染它"],
+    ["LICENSE", hasLicense, "规范 §4 必须"],
+  ]) {
+    if (state === false) errors.push(`${id}: 仓库根缺 ${file}（${why}）`);
+    // 不可达也判错（校验门禁必须 fail closed），但措辞要让审核员一眼看出
+    // 是连不上而非文件缺失，重跑即可，不要去给插件作者提"补文件"的 issue。
+    else if (state === UNREACHABLE) {
+      errors.push(`${id}: 无法确认仓库根 ${file} 是否存在——raw.githubusercontent 连接失败（非作者问题，重跑本校验）`);
+    }
+  }
   report.readme = hasReadme;
   report.license = hasLicense;
 }
@@ -810,7 +885,9 @@ async function main() {
       `- 权限（${(entry.permissions ?? []).length}）：${(entry.permissions ?? []).join(", ") || "无"}`,
       netPerms.length ? `- 网络域名：${netPerms.map((p) => p.slice(8)).join(", ")}` : null,
       execPerms.length ? `- ⚠️ 进程执行：${execPerms.map((p) => p.slice(5)).join(", ")}（任意代码执行能力，重点审核）` : null,
-      report.readme === null ? null : `- README：${report.readme ? "✅" : "❌"} · LICENSE：${report.license ? "✅" : "❌"}`,
+      report.readme === null
+        ? null
+        : `- README：${presenceMark(report.readme)} · LICENSE：${presenceMark(report.license)}`,
       entry.icon || (entry.screenshots ?? []).length
         ? `- 展示素材：${entry.icon ? "icon ✅" : "icon —"} · 效果图 ${(entry.screenshots ?? []).length} 张`
         : null,

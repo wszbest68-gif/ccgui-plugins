@@ -3,6 +3,15 @@
 规范全文见 desktop-cc-gui 仓库 `docs/plugin-development-guide.zh-CN.md`。
 本文件只记录规范的演进；每次规范变更（新权限、新字段、规则收紧）在此追加一段。
 
+## v0.4 — 2026-10（SDK 0.3.20 权限与命名空间 ID）
+
+- 基座权限同步宿主 SDK 0.3.20 的 `packages/plugin-sdk/spec/permissions.json`，共 36 项；首次登记与版本机器人共用同一校验器，不对单个插件设置豁免。
+- ID 支持点分命名空间，例如 `ccgui.client-context-bridge`：总长 2–64 个 ASCII 字符，每段为 `[a-z0-9][a-z0-9-]*`；拒绝空段、首尾点、非法段首、路径分隔符、非 ASCII 与控制字符（包括尾随换行）。普通连字符 ID 保持兼容，登记文件名仍须等于 ID。
+- `network:none` 仍只是“不申请网络”的声明，不是网络主机授权；`network:none:80` 等伪授权、未知权限和尾随控制字符继续拒绝。
+- 校验工作流在远端附件核查前执行 Node 行为回归，覆盖登记与版本更新、权限和 ID 边界、现有条目兼容及黑名单门禁。
+- 权限-代码比对不再绑定上下文接收者名字（此前写死 `ctx.`）：打包产物会把 `activate` 的上下文参数压缩成任意标识符，旧启发式对所有压缩 bundle 静默失效，「调用了却没声明」这条错误判定等于没有。改法按 API 名字的歧义程度分两档：名字唯一的注册/方法调用（`ui.register*`、`hooks.*`、`workspace.getMetadata`、`documentStorage.*` 等）按成员路径匹配，与接收者无关；名字通用的 namespace（`models`/`sessions`/`window`/`storage`/`events`/`theme`/`agent`/`i18n`）必须连同 SDK 真实方法名一起匹配，因为裸 `.models.` 会打到 API 响应的数据字段、内部 Map 和特性探测（实测 `d.models.map`、`this.sessions.get`、`typeof e.window.getState`），按裸 namespace 判错会把合规插件拒掉。同时补齐 `workspaces.list`、`composer.setDraft`、`worktrees.*`、`models.*` 等 0.3.20 能力面。`hooks.registerTurnHooks` 的两项权限按入参字段分别门禁，静态分不开，只用于抑制「声明了但没用到」的警告，不作硬性错误。
+- 远端核查区分「文件确实缺失」（404）与「连接失败」：传输层错误与 408/429/5xx 退避重试 3 次，404 立即返回不重试。两者都判错（门禁 fail closed），但连接失败的措辞明确标注非作者问题、重跑即可，审核员不应据此要求插件作者补文件。
+
 ## v0.3 — 2026-10（编辑精选：featured.json）
 
 - 新增仓根 `featured.json`：市场页首屏轮播的唯一致据源。数组，顺序 = 优先级，≤ 8 条；字段 `id`（必填，须为已登记 id）、`tagline` / `note`（选填编辑文案）、`image`（选填封面，相对路径按插件仓库解析，规则同 icon/screenshots）。
