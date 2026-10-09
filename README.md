@@ -11,6 +11,7 @@ GitHub Releases 分发（Obsidian 社区插件同款模式，零自建服务器�
 ```
 community-plugins.json        # 插件列表（id/repo/name/description/author，按 id 字典序）
 plugins/<id>.json             # 每个插件的版本登记：version/tier/permissions/sha256/minAppVersion + 展示素材 icon/screenshots
+featured.json                 # 编辑精选（市场首屏轮播，顺序 = 优先级，≤ 8 条，可缺省）
 download-counts.json         # 各插件累计下载量（机器人每 6h 聚合 release 下载数生成，勿手改）
 scripts/validate.mjs          # 审核校验器（零依赖 Node ≥ 20）
 .github/workflows/validate.yml  # PR 校验 + main 全量复检
@@ -101,6 +102,30 @@ git tag 1.0.0 && git push origin 1.0.0
 
 作者也可以不走机器人，手动提「版本登记 PR」（只改 `plugins/<id>.json`），
 走同一条 CI + 自动合并通道。
+
+## 编辑精选（维护者手工维护）
+
+市场页首屏的轮播（方案 A）只有一个数据源：本仓 `featured.json`。改它不需要发版、
+不需要碰插件仓库，客户端有 1h 缓存，过期后自动生效。
+
+```jsonc
+[
+  {
+    "id": "auto-title",                   // 必填：必须是 community-plugins.json 里已登记的 id
+    "tagline": "再也不用给会话起名字",       // 选填：一句话卖点；不写就用索引里的描述
+    "note": "官方出品，零配置：装完就生效。",  // 选填：编辑推荐语（为什么值得装）
+    "image": "docs/cover.png"             // 选填：封面；相对路径按**插件仓库**解析（同 icon/screenshots），也可写绝对 https URL
+  }
+]
+```
+
+- 数组顺序 = 优先级，客户端从第一条开始放，最多 8 条；`id` 不在索引里 / 重复 / 超限
+  会被 CI 拦下——客户端对这种行是**静默丢弃**，所以宁可少一条，不上一个装不了的推荐位。
+- 封面可以不写。客户端依次回退：`image` → 插件自己的第一张截图 → 插件 `icon` →
+  品牌色首字块，任何一环拉不到都不会留空洞。
+- 想要铺满式大图只能自己给 `image`（比例接近 16:9）；插件自带的截图一律按原比例
+  装帧、不裁切——索引里的截图从 3600×740 到 357×425 都有，裁切会毁掉其中一头。
+- **删掉 `featured.json` 就是最快的回滚**：没有这个文件 = 市场没有轮播区，表格照常。
 
 ## 硬性规则（CI 强制）
 

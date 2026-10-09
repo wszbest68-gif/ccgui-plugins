@@ -22,6 +22,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   isKnownPermission,
+  isValidPluginId,
   compareSemver,
   downloadAsset,
   JS_BLACKLIST,
@@ -68,6 +69,7 @@ export async function latestReleaseTag(repo) {
  */
 export async function buildBumpedEntry(id, old, tag, manifest, assets) {
   const notes = [];
+  if (!isValidPluginId(id)) return { notes, skip: `索引 id "${id}" 不合法` };
   if (manifest.id !== id) return { notes, skip: `manifest.id "${manifest.id}" ≠ 索引 id "${id}"` };
   if (manifest.version !== tag) {
     return { notes, skip: `manifest.version "${manifest.version}" ≠ Release tag "${tag}"（规范：tag == version，无 v 前缀）` };
@@ -76,6 +78,7 @@ export async function buildBumpedEntry(id, old, tag, manifest, assets) {
     return { notes, skip: `tier 从 "${old.tier}" 变为 "${manifest.tier}"——层级变更必须人工上架` };
   }
   const permissions = manifest.permissions ?? [];
+  if (!Array.isArray(permissions)) return { notes, skip: "manifest.permissions 必须是字符串数组" };
   for (const p of permissions) {
     if (typeof p !== "string" || !isKnownPermission(p)) {
       return { notes, skip: `manifest 含未知权限 "${p}"` };

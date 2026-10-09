@@ -19,8 +19,8 @@
     "i18n"
   ],
   "sha256": {
-    "main.js": "26d89ce9b2a082cbbb3fb065494ae5ee58937b7453a1e0bf8cbc36b9e3eb9594",
     "manifest.json": "f4034c0a0a4d1b68ab0dc4a676b80c684931bce582ed641badb73c65f0f4d5fe",
+    "main.js": "26d89ce9b2a082cbbb3fb065494ae5ee58937b7453a1e0bf8cbc36b9e3eb9594",
     "styles.css": "b04d8e80df56b18318240c4eb40c8c586f0f7b794139517fff78d0cb8ffb2977"
   }
 }

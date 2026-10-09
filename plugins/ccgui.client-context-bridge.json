@@ -1,0 +1,32 @@
+{
+  "id": "ccgui.client-context-bridge",
+  "repo": "MurasameCyan/ccgui-plugin-client-context-bridge",
+  "tier": "js",
+  "version": "1.0.2",
+  "minAppVersion": "1.0.0",
+  "sdkVersion": ">=0.3.20",
+  "permissions": [
+    "storage",
+    "ui:settings-section",
+    "ui:workspace-menu",
+    "i18n",
+    "events",
+    "network:none",
+    "session.lifecycle.read",
+    "runtime.events.read",
+    "runtime.switch.observe",
+    "prompt.contribute.internal",
+    "workspace.metadata.read",
+    "host:workspace",
+    "plugin.storage"
+  ],
+  "sha256": {
+    "main.js": "2c694f4d909a367c4ce5941c4ce144af8d45d9fcb1601f7f969500ca47492da5",
+    "manifest.json": "a233430b700977b6531ef59364b083f3c845dca95ac60c6c9bf2952fc1aef4e6"
+  },
+  "icon": "docs/icon.svg",
+  "screenshots": [
+    "docs/screenshot-settings.png",
+    "docs/screenshot-workspace-menu.png"
+  ]
+}

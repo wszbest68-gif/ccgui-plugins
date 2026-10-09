@@ -21,6 +21,20 @@
     "author": "zhujiuyi"
   },
   {
+    "id": "ccgui.client-context-bridge",
+    "repo": "MurasameCyan/ccgui-plugin-client-context-bridge",
+    "name": "跨客户端上下文桥接 (CCB)",
+    "description": "在不同 AI CLI 客户端之间自动维护和接续任务上下文，支持按工作区独立启停。",
+    "author": "MurasameCyan"
+  },
+  {
+    "id": "ccgui.live2d-pets",
+    "repo": "MurasameCyan/ccgui-plugin-live2d-pets",
+    "name": "Live2D 桌宠",
+    "description": "在界面上渲染可互动的 Live2D 桌宠，并镜像当前激活会话的 AI 状态（思考/等审批/出错/完成/空闲）；支持摸头摸腿、鼠标跟随、拖动停靠、六套人设台词与自定义模型动画映射。",
+    "author": "MurasameCyan"
+  },
+  {
     "id": "claude-ip-check",
     "repo": "zhukunpenglinyutong/ccgui-plugin-claude-ip-check",
     "name": "Claude IP 检查",
